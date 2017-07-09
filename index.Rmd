@@ -1,0 +1,6 @@
+---
+title: "index"
+output: html_document
+---
+
+species.list <- c("Parrya nudicaulis","Senecio lugens","Anemone parviflora","Lloydia serotina","Carex bigelowii","Anemone parviflora","Polygonum viviparum","Oxyria digyna","Arnica lessingii","Geum rossii","Potentilla diversifolia","Polygonum bistortoides","Thalictrum alpinum","Geum rossii","Polygonum bistortoides","Poa alpina","Thalictrum alpinum","Ranunculus eschscholtzii")
