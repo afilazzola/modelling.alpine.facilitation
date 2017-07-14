@@ -3,4 +3,245 @@ title: "index"
 output: html_document
 ---
 
-species.list <- c("Parrya nudicaulis","Senecio lugens","Anemone parviflora","Lloydia serotina","Carex bigelowii","Anemone parviflora","Polygonum viviparum","Oxyria digyna","Arnica lessingii","Geum rossii","Potentilla diversifolia","Polygonum bistortoides","Thalictrum alpinum","Geum rossii","Polygonum bistortoides","Poa alpina","Thalictrum alpinum","Ranunculus eschscholtzii")
+###load libraries
+```{r}
+library(raster)
+library(rgdal)
+library(dismo)
+library(rgbif)
+```
+
+### load climate/altitude rasters and state polygons
+```{r}
+
+clim.colorado <- stack("rasters//clim.colorado.tif")
+clim.alaska <- stack("rasters//clim.alaska.tif")
+# 
+# us <- getData("GADM", country="USA", level=1) ## use state bounds from gadm website:
+# alaska <- c("Alaska") ## extract states (need to uppercase everything)
+# alaska = us[match(toupper(alaska),toupper(us$NAME_1)),]
+# 
+# colorado <- c("Colorado") ## extract states (need to uppercase everything)
+# colorado = us[match(toupper(colorado),toupper(us$NAME_1)),]
+```
+
+### download species occurrences
+```{r}
+# 
+# temp <- gbif("Silene","acaulis") ## extract species name from GBIF server
+# temp<-na.omit(temp[,c("lon","lat")]) ## remove all columns except lat-long
+# temp <- temp[!duplicated(temp), ] ## duplicated occurences
+# temp["species.name"]<- rep(paste("Silene"," ","acaulis"),nrow(temp)) ##generate column for species name
+# write.csv(temp, paste("occurrences\\","Silene.","acaulis.","occurrence.csv", sep=""),row.names=F) ##write csv with species occurences
+# 
+# 
+# ## create bias file for Colorado
+# 
+# genus<- c("Mertensia","Poa","Thalictrum","Epilobium","Cerastium","Polygonum","Polemonium","Trifolium","Potentilla","Carex","Ranunculus","Arenaria","Ligusticum","Hymeneocis","Bromus","Rhodiola","Danthonia","Sedum","Abies","Achillea","Achillea","Kobresia","Eritrychum","Castilleja","Carex","Viola","Geum","Agrostis","Artemisia","Phlox","Trisetum","Taraxacum")
+# species <- c("alpina","alpina","alpinum","angustifolium","beeringianum","bistortoides","brandegei","dasiphyllum","diversifolia","elynoides","eschscholtzii","fendleri","filvinum","grandiflora","inermis","integrifolia","intermedia","lanceolatum","lasiocarpa","millefolia","millefolium","myosuroides","nanum","occidentalis","pseudoscirpoidea","purpurea","rossii","scabra","scopulorum","sibirica","spicatum","vulgare")
+# 
+# ## download occurrences
+# for(i in 1:length(genus))
+# {
+# key <- name_backbone(name=paste(genus[i],species[i]))$speciesKey ## extract species key from gbif
+# temp <- occ_data(taxonKey = key, country="us", hasCoordinate =T)## extract species name from GBIF server
+# temp <- data.frame(lon=temp$data$decimalLongitude,lat=temp$data$decimalLatitude,species.name=temp$data$name)
+# temp <- temp[!duplicated(temp), ]  ## duplicated occurences
+# write.csv(temp, paste("occurrences//bias.colorado//",genus[i],".",species[i], ".occurrence.csv",sep=""),row.names=F) ##write csv with species occurences
+# print(i)
+# }
+
+## load occurrences files
+# occurdat<-list.files("occurrences//bias.colorado//",pattern=".csv$",full=T)
+# locations<-read.csv(occurdat[1])
+# ## combine into one dataframe
+# for(i in 2:length(occurdat)){
+# temp<-read.csv(occurdat[i])
+# locations<-rbind(locations,temp)
+# }
+# 
+# ##create empty raster
+# r1 <- unstack(clim.colorado)
+# r1 <- r1[[1]]
+# 
+# ## rasterize occurrences
+# occur.ras<-rasterize(locations[,1:2],r1,1)
+# 
+# ##crop occurrences to Colorado
+# occur.states<-mask(occur.ras,r1)
+# 
+# ##density function to create bias raster
+# presences<-which(values(occur.states)==1)
+# pres.locs<-coordinates(occur.states)[presences,]
+# dens<-kde2d(pres.locs[,1],pres.locs[,2],n=c(nrow(occur.states),ncol(occur.states)))
+# 
+# dens.ras<-raster(dens)
+# 
+# ## write bias file raster
+# writeRaster(dens.ras, "rasters//colorado.bias.file.tif", overwrite=T)
+# 
+
+# ## create bias file for Alaska
+# genus <- c("Thalictrum","Astragalus","Festuca","Astragalus","Artemisia","Salix","Poa","Potentilla","Carex","Saxifraga","Oxyria","Carex","Viola","Saxifraga","Pedicularis","Antennaria","Geum","Petasites","Stellaria","Rhododendron","Epilobium","Arnica","Luzula","Betula","Dryas","Anemone","Salix","Gentiana","Toffieldia","Salix","Saxifraga","Trisetum","Pedicularis","Cassiope","Polygonum")
+# species <- c("alpinum","alpinum","altaica","arboriginorum","arctica","arctica","arctica","biflora","bigelowii","brochialis","digyna","elynoides","episula","flagellaris","flammea","friesiana","glaciale","hyperboreus","laeta","lapponicum","latifolium","lessingii","multiflora","nana","octopetala","parviflora","polaris","propinqua","pusilla","reticulata","spicata","spicatum","sudetica","tetragona","viviparum")
+# 
+# ## download occurrences
+# for(i in 1:length(genus))
+# {
+# key <- name_backbone(name=paste(genus[i],species[i]))$speciesKey ## extract species key from gbif
+# temp <- occ_data(taxonKey = key, country="us", hasCoordinate =T)## extract species name from GBIF server
+# temp <- data.frame(lon=temp$data$decimalLongitude,lat=temp$data$decimalLatitude,species.name=temp$data$name)
+# temp <- temp[!duplicated(temp), ]  ## duplicated occurences
+# write.csv(temp, paste("occurrences//bias.alaska//",genus[i],".",species[i], ".occurrence.csv",sep=""),row.names=F) ##write csv with species occurences
+# print(i)
+# }
+
+## load occurrences files
+# occurdat<-list.files("occurrences//bias.alaska//",pattern=".csv$",full=T)
+# locations<-read.csv(occurdat[1])
+# ## combine into one dataframe
+# for(i in 2:length(occurdat)){
+# temp<-read.csv(occurdat[i])
+# locations<-rbind(locations,temp)
+# }
+# 
+# ##create empty raster
+# r1 <- unstack(clim.alaska)
+# r1 <- r1[[1]]
+# 
+# ## rasterize occurrences
+# occur.ras<-rasterize(locations[,1:2],r1,1)
+# 
+# ##crop occurrences to Colorado
+# occur.states<-mask(occur.ras,r1)
+# 
+# ##density function to create bias raster
+# presences<-which(values(occur.states)==1)
+# pres.locs<-coordinates(occur.states)[presences,]
+# dens<-kde2d(pres.locs[,1],pres.locs[,2],n=c(nrow(occur.states),ncol(occur.states)))
+# 
+# dens.ras<-raster(dens)
+# 
+# ## write bias file raster
+# writeRaster(dens.ras, "rasters//alaska.bias.file.tif", overwrite=T)
+
+```
+
+### conduct species distribution modelling
+```{r}
+## silene acaulis colorado
+location <- read.csv("occurrences//Silene.acaulis.occurrence.csv")
+gps <- location[,1:2]
+coordinates(gps) <- ~lon+lat
+proj4string(gps) <- CRS("+proj=longlat +datum=WGS84")
+gps <- crop(gps, extent(clim.colorado))
+
+## create background points using areas within 1 km of occurence
+set.seed(0)
+samplearea <- circles(gps, d=10000, lonlat=T)
+backgr <- spsample(samplearea@polygons, 1000, type='random')
+
+
+## withhold 20% for sample testing
+fold.p <- kfold(gps, k=5)
+occtest.p <-gps[fold.p == 4, ]
+occtrain.p <- gps[fold.p != 4, ]
+fold.a <- kfold(backgr, k=5)
+occtest.a <-backgr[fold.a == 4, ]
+occtrain.a <- backgr[fold.a != 4, ]
+bias.colorado <- raster("rasters//colorado.bias.file.tif")
+
+## maxent environment only
+max1 <- maxent(clim.colorado, p=occtrain.p, a=occtrain.a, biasfile=bias.colorado)
+
+eval1 <- evaluate(occtest.p, occtest.a,max1, clim.colorado)
+
+#predict distribution
+pred_me <- predict(max1, clim.colorado)
+
+plot(pred_me)
+
+
+## Thalictrum alpinum colorado
+location <- read.csv("occurrences//bias.colorado//Thalictrum.alpinum.occurrence.csv")
+gps <- location[,1:2]
+coordinates(gps) <- ~lon+lat
+proj4string(gps) <- CRS("+proj=longlat +datum=WGS84")
+gps <- crop(gps, extent(clim.colorado))
+
+## create background points using areas within 1 km of occurence
+set.seed(0)
+samplearea <- circles(gps, d=10000, lonlat=T)
+backgr <- spsample(samplearea@polygons, 1000, type='random')
+
+
+## withhold 20% for sample testing
+fold.p <- kfold(gps, k=5)
+occtest.p <-gps[fold.p == 4, ]
+occtrain.p <- gps[fold.p != 4, ]
+fold.a <- kfold(backgr, k=5)
+occtest.a <-backgr[fold.a == 4, ]
+occtrain.a <- backgr[fold.a != 4, ]
+bias.colorado <- raster("rasters//colorado.bias.file.tif")
+
+## maxent environment only
+max2 <- maxent(clim.colorado, p=occtrain.p, a=occtrain.a, biasfile=bias.colorado)
+
+eval2 <- evaluate(occtest.p, occtest.a,max2, clim.colorado)
+
+#predict distribution
+pred_me2 <- predict(max2, clim.colorado)
+
+plot(pred_me2)
+
+## compare probabilities between species
+cushion.vals <- extract(pred_me, backgr)
+beneficiary.vals <- extract(pred_me2, backgr)
+
+par(mar=c(4.5,4.5,0.5,0.5))
+plot(cushion.vals,beneficiary.vals, xlim=c(0,1), ylim=c(0,1), pch=19, cex=0.3)
+abline(h=0.5, lwd=2, lty=2, col="Grey50")
+abline(v=0.5, lwd=2, lty=2, col="Grey50")
+
+```
+
+
+```{r}
+# ## silene acaulis alaska
+# location <- read.csv("occurrences//Silene   acaulis  occurrence.csv")
+# gps <- location[,1:2]
+# coordinates(gps) <- ~lon+lat
+# proj4string(gps) <- CRS("+proj=longlat +datum=WGS84")
+# gps <- crop(gps, extent(clim.alaska))
+# 
+# 
+# ## create background points using areas within 1 km of occurence
+# ## Bounding box in Alaska too large, run iteratively 
+# samplearea <- circles(gps[1], d=50000, lonlat=T)
+# backgr <- spsample(samplearea@polygons, sample(1:5, 1), type='random')
+# 
+# for ( i in  2:length(gps)){
+#   samplearea <- circles(gps[i], d=50000, lonlat=T)
+#   test <- spsample(samplearea@polygons, sample(5, 1), type='random')
+#   backgr <- rbind(backgr,test)
+# }
+# 
+# ## withhold 20% for sample testing
+# fold.p <- kfold(gps, k=5)
+# occtest.p <-gps[fold.p == 4, ]
+# occtrain.p <- gps[fold.p != 4, ]
+# fold.a <- kfold(backgr, k=5)
+# occtest.a <-backgr[fold.a == 4, ]
+# occtrain.a <- backgr[fold.a != 4, ]
+# bias.alaska <- raster("rasters//alaska.bias.file.tif")
+# 
+# ## maxent environment only
+# max1 <- maxent(clim.alaska, p=occtrain.p, a=occtrain.a, biasfile=bias.alaska)
+# 
+# eval1 <- evaluate(occtest.p, occtest.a,max1, clim.alaska)
+# 
+# #predict distribution
+# pred_me <- predict(max1, clim.alaska)
+# 
+# plot(pred_me)
+```
