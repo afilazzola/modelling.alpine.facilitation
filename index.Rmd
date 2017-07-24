@@ -9,13 +9,18 @@ library(raster)
 library(rgdal)
 library(dismo)
 library(rgbif)
+library(MASS)
 ```
 
 ### load climate/altitude rasters and state polygons
 ```{r}
 
-clim.colorado <- stack("rasters//clim.colorado.tif")
-clim.alaska <- stack("rasters//clim.alaska.tif")
+clim.chile <- stack("rasters//clim.chile.tif")
+clim.sweden <- stack("rasters//clim.sweden.tif")
+clim.italy <- stack("rasters//clim.italy.tif")
+
+# clim.colorado <- stack("rasters//clim.colorado.tif")
+# clim.alaska <- stack("rasters//clim.alaska.tif")
 # 
 # us <- getData("GADM", country="USA", level=1) ## use state bounds from gadm website:
 # alaska <- c("Alaska") ## extract states (need to uppercase everything)
@@ -125,16 +130,79 @@ clim.alaska <- stack("rasters//clim.alaska.tif")
 # ## write bias file raster
 # writeRaster(dens.ras, "rasters//alaska.bias.file.tif", overwrite=T)
 
+# 
+# ## create bias file for sweden
+species.list <- read.csv("species.list.csv")
+species.list <- subset(species.list, gbif=="yes") ## remove species not on gbif
+
+species.sweden <- subset(species.list, country=="Sweden")
+
+genus <- species.sweden$subordinate.genus
+species <- species.sweden$subordinate.species
+
+## download occurrences
+ for(i in 1:length(genus))
+ {
+ key <- name_backbone(name=paste(genus[i],species[i]))$speciesKey ## extract species key from gbif
+temp <- occ_data(taxonKey = key, country="SE", hasCoordinate =T)## extract species name from GBIF server
+temp <- data.frame(lon=temp$data$decimalLongitude,lat=temp$data$decimalLatitude,species.name=temp$data$name)
+temp <- temp[!duplicated(temp), ]  ## duplicated occurences
+write.csv(temp, paste("occurrences//bias.sweden/",genus[i],".",species[i], ".occurrence.csv",sep=""),row.names=F) ##write csv with species occurences
+print(i)
+}
+
+## load occurrences files
+occurdat<-list.files("occurrences//bias.sweden//",pattern=".csv$",full=T)
+locations<-read.csv(occurdat[1])
+## combine into one dataframe
+for(i in 2:length(occurdat)){
+temp<-read.csv(occurdat[i])
+ locations<-rbind(locations,temp)
+ }
+
+##create empty raster
+r1 <- unstack(clim.sweden)
+r1 <- r1[[1]]
+
+## rasterize occurrences
+occur.ras<-rasterize(locations[,1:2],r1,1)
+
+##crop occurrences to Colorado
+occur.states<-mask(occur.ras,r1)
+
+##density function to create bias raster
+presences<-which(values(occur.states)==1)
+pres.locs<-coordinates(occur.states)[presences,]
+dens<-kde2d(pres.locs[,1],pres.locs[,2],n=c(nrow(occur.states),ncol(occur.states)))
+
+dens.ras<-raster(dens)
+
+##write bias file raster
+writeRaster(dens.ras, "rasters//sweden.bias.file.tif", overwrite=T)
+
 ```
 
 ### conduct species distribution modelling
 ```{r}
-## silene acaulis colorado
-location <- read.csv("occurrences//Silene.acaulis.occurrence.csv")
+
+species.area <- data.frame()
+
+## collect species files
+occurdat<-list.files("occurrences//bias.italy//",pattern=".csv$",full=T)
+## climate data specification
+climate <- clim.italy
+
+for (i in 1:length(occurdat)){
+## pick species name  
+species.name <-basename(occurdat[i])
+
+## species analysis of geographic extent
+location <- read.csv(occurdat[i])
+if(nrow(location) < 10) next  ##skip species with less than 10 occurrences
 gps <- location[,1:2]
 coordinates(gps) <- ~lon+lat
 proj4string(gps) <- CRS("+proj=longlat +datum=WGS84")
-gps <- crop(gps, extent(clim.colorado))
+gps <- crop(gps, extent(climate))
 
 ## create background points using areas within 1 km of occurence
 set.seed(0)
@@ -149,59 +217,29 @@ occtrain.p <- gps[fold.p != 4, ]
 fold.a <- kfold(backgr, k=5)
 occtest.a <-backgr[fold.a == 4, ]
 occtrain.a <- backgr[fold.a != 4, ]
-bias.colorado <- raster("rasters//colorado.bias.file.tif")
+bias.data <- raster("rasters//italy.bias.file.tif")
 
 ## maxent environment only
-max1 <- maxent(clim.colorado, p=occtrain.p, a=occtrain.a, biasfile=bias.colorado)
+max1 <- maxent(climate, p=occtrain.p, a=occtrain.a, biasfile=bias.data)
 
-eval1 <- evaluate(occtest.p, occtest.a,max1, clim.colorado)
-
-#predict distribution
-pred_me <- predict(max1, clim.colorado)
-
-plot(pred_me)
-
-
-## Thalictrum alpinum colorado
-location <- read.csv("occurrences//bias.colorado//Thalictrum.alpinum.occurrence.csv")
-gps <- location[,1:2]
-coordinates(gps) <- ~lon+lat
-proj4string(gps) <- CRS("+proj=longlat +datum=WGS84")
-gps <- crop(gps, extent(clim.colorado))
-
-## create background points using areas within 1 km of occurence
-set.seed(0)
-samplearea <- circles(gps, d=10000, lonlat=T)
-backgr <- spsample(samplearea@polygons, 1000, type='random')
-
-
-## withhold 20% for sample testing
-fold.p <- kfold(gps, k=5)
-occtest.p <-gps[fold.p == 4, ]
-occtrain.p <- gps[fold.p != 4, ]
-fold.a <- kfold(backgr, k=5)
-occtest.a <-backgr[fold.a == 4, ]
-occtrain.a <- backgr[fold.a != 4, ]
-bias.colorado <- raster("rasters//colorado.bias.file.tif")
-
-## maxent environment only
-max2 <- maxent(clim.colorado, p=occtrain.p, a=occtrain.a, biasfile=bias.colorado)
-
-eval2 <- evaluate(occtest.p, occtest.a,max2, clim.colorado)
+eval1 <- evaluate(occtest.p, occtest.a,max1, climate)
 
 #predict distribution
-pred_me2 <- predict(max2, clim.colorado)
+pred_me <- predict(max1, climate)
 
-plot(pred_me2)
+#plot(pred_me)
 
-## compare probabilities between species
-cushion.vals <- extract(pred_me, backgr)
-beneficiary.vals <- extract(pred_me2, backgr)
+test <- pred_me@data@values
+test[is.na(test)] <- 0
+area <- mean(test)
 
-par(mar=c(4.5,4.5,0.5,0.5))
-plot(cushion.vals,beneficiary.vals, xlim=c(0,1), ylim=c(0,1), pch=19, cex=0.3)
-abline(h=0.5, lwd=2, lty=2, col="Grey50")
-abline(v=0.5, lwd=2, lty=2, col="Grey50")
+
+temp <- data.frame(species=species.name, niche.area=area, AUC=eval1@auc)
+species.area  <- rbind(species.area,temp)
+print(i)
+}
+
+write.csv(species.area, "italy.species.values.csv")
 
 ```
 
